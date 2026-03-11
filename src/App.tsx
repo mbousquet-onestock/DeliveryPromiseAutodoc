@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, X, Bell, Globe, Share2, DollarSign, Truck, Calendar, ChevronDown, MoreVertical, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { COUNTRIES, MOCK_ITEMS } from './constants';
+import { COUNTRIES, MOCK_ITEMS, SUPPLIER_DATA, HUB_DATA } from './constants';
 
 interface Item {
   id: string;
@@ -12,9 +12,28 @@ interface Item {
   quantity?: number;
 }
 
-const AddItemModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: () => void; onAdd: (item: Item) => void }) => {
+interface CalculatedMethod {
+  name: string;
+  status: string;
+  reason: string;
+  dateStart: string;
+  dateEnd: string;
+  cutoff: string;
+  shipments: number;
+  cost: string;
+  carbon: string;
+  fees: string;
+  carrier: string;
+  details: {
+    suppliers: any[];
+    hubs: any[];
+  };
+}
+
+const AddItemModal = ({ isOpen, onClose, onAddMultiple }: { isOpen: boolean; onClose: () => void; onAddMultiple: (items: Item[]) => void }) => {
   const [search, setSearch] = useState('');
   const [quantities, setQuantities] = useState<{ [key: string]: number }>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filteredItems = useMemo(() => {
     return MOCK_ITEMS.filter(item => 
@@ -26,6 +45,34 @@ const AddItemModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: ()
   const handleQtyChange = (id: string, val: string) => {
     const num = parseInt(val) || 1;
     setQuantities(prev => ({ ...prev, [id]: num }));
+    if (!selectedIds.has(id)) {
+      setSelectedIds(prev => new Set(prev).add(id));
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleAddSelected = () => {
+    const itemsToAdd = MOCK_ITEMS
+      .filter(item => selectedIds.has(item.id))
+      .map(item => ({
+        ...item,
+        quantity: quantities[item.id] || 1
+      }));
+    
+    if (itemsToAdd.length > 0) {
+      onAddMultiple(itemsToAdd);
+      setSelectedIds(new Set());
+      setQuantities({});
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -38,14 +85,14 @@ const AddItemModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: ()
         exit={{ opacity: 0, scale: 0.95 }}
         className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
       >
-        <div className="p-4 border-bottom flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">Add item</h2>
+        <div className="p-4 border-b flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-800">Add items</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
             <X size={24} />
           </button>
         </div>
 
-        <div className="p-4 border-bottom">
+        <div className="p-4 border-b">
           <label className="text-sm text-gray-500 mb-1 block">Search</label>
           <div className="relative">
             <input 
@@ -53,7 +100,7 @@ const AddItemModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: ()
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full border border-gray-300 rounded-md py-2 pl-3 pr-10 focus:outline-none focus:ring-2 focus:ring-[#26C2B9] focus:border-transparent"
-              placeholder=""
+              placeholder="Search by name or ID..."
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
               {search ? (
@@ -66,46 +113,62 @@ const AddItemModal = ({ isOpen, onClose, onAdd }: { isOpen: boolean; onClose: ()
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {filteredItems.map(item => (
-            <div key={item.id} className="border border-gray-200 rounded-lg p-3 flex items-center gap-4">
-              <img src={item.image} alt={item.title} className="w-16 h-16 object-contain rounded" referrerPolicy="no-referrer" />
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-800 truncate">{item.title}</h3>
-                <p className="text-sm text-gray-500">{item.price} | {item.type}</p>
-                <p className="text-xs text-gray-400">{item.id}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-center">
-                  <span className="text-[10px] text-gray-400 uppercase font-bold">Qty</span>
-                  <input 
-                    type="number"
-                    min="1"
-                    value={quantities[item.id] || 1}
-                    onChange={(e) => handleQtyChange(item.id, e.target.value)}
-                    className="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-1 focus:ring-[#26C2B9]"
-                  />
+          {filteredItems.map(item => {
+            const isSelected = selectedIds.has(item.id);
+            return (
+              <div 
+                key={item.id} 
+                className={`border rounded-lg p-3 flex items-center gap-4 transition-colors cursor-pointer ${isSelected ? 'border-[#26C2B9] bg-[#26C2B9]/5' : 'border-gray-200 hover:border-gray-300'}`}
+                onClick={() => toggleSelection(item.id)}
+              >
+                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-[#26C2B9] border-[#26C2B9]' : 'border-gray-300 bg-white'}`}>
+                  {isSelected && <CheckCircle2 size={14} className="text-white" />}
                 </div>
-                <button 
-                  onClick={() => onAdd({ ...item, quantity: quantities[item.id] || 1 })}
-                  className="bg-[#26C2B9] text-white px-4 py-2 rounded font-medium hover:bg-[#1fa9a1] transition-colors"
-                >
-                  Add
-                </button>
+                <img src={item.image} alt={item.title} className="w-16 h-16 object-contain rounded bg-white" referrerPolicy="no-referrer" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-gray-800 truncate">{item.title}</h3>
+                  <p className="text-sm text-gray-500">{item.price} € | {item.type}</p>
+                  <p className="text-xs text-gray-400">{item.id}</p>
+                </div>
+                <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10px] text-gray-400 uppercase font-bold">Qty</span>
+                    <input 
+                      type="number"
+                      min="1"
+                      value={quantities[item.id] || 1}
+                      onChange={(e) => handleQtyChange(item.id, e.target.value)}
+                      className="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-1 focus:ring-[#26C2B9]"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {filteredItems.length === 0 && (
             <div className="text-center py-8 text-gray-500">No items found</div>
           )}
         </div>
 
-        <div className="p-4 border-t flex justify-end">
-          <button 
-            onClick={onClose}
-            className="border border-gray-300 text-gray-700 px-6 py-2 rounded font-medium hover:bg-gray-50 transition-colors"
-          >
-            Close
-          </button>
+        <div className="p-4 border-t flex justify-between items-center bg-gray-50 rounded-b-lg">
+          <div className="text-sm text-gray-600">
+            {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
+          </div>
+          <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              className="px-6 py-2 rounded font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleAddSelected}
+              disabled={selectedIds.size === 0}
+              className={`px-6 py-2 rounded font-medium transition-colors ${selectedIds.size > 0 ? 'bg-[#26C2B9] text-white hover:bg-[#1fa9a1]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+            >
+              Add selected items
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>
@@ -117,9 +180,219 @@ export default function App() {
   const [selectedItems, setSelectedItems] = useState<Item[]>([]);
   const [salesChannel, setSalesChannel] = useState('France');
   const [destinationType, setDestinationType] = useState('address');
-  const [country, setCountry] = useState('');
+  const [country, setCountry] = useState('France');
   const [showResults, setShowResults] = useState(false);
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
+  const [expandedSuppliers, setExpandedSuppliers] = useState<string[]>([]);
+  const [expandedConsolidations, setExpandedConsolidations] = useState<string[]>([]);
+
+  const calculateResults = useMemo(() => {
+    if (selectedItems.length === 0) return [];
+    
+    const targetCountry = country || 'France';
+    
+    const findPaths = (itemId: string, destination: string) => {
+      const paths: any[] = [];
+      
+      // Find suppliers for this item
+      const suppliers = SUPPLIER_DATA.filter(s => s.itemId === itemId);
+      
+      suppliers.forEach(supplier => {
+        supplier.routes.forEach(route => {
+          // Direct route to country
+          if (route.to === destination) {
+            paths.push({
+              supplier: supplier.name,
+              steps: [
+                { from: supplier.name, to: destination, ...route }
+              ],
+              totalCost: route.cost,
+              totalHours: (route.transitHours || 0) + (route.transitDays || 0) * 24,
+              totalCarbon: parseInt(route.carbon) || 0
+            });
+          }
+          
+          // Route via Hub
+          const hub = HUB_DATA.find(h => h.name === route.to);
+          if (hub) {
+            hub.routes.forEach(hubRoute => {
+              if (hubRoute.to === destination) {
+                paths.push({
+                  supplier: supplier.name,
+                  steps: [
+                    { from: supplier.name, to: hub.name, ...route },
+                    { from: hub.name, to: destination, ...hubRoute }
+                  ],
+                  totalCost: route.cost + hubRoute.cost,
+                  totalHours: (route.transitHours || 0) + (route.transitDays || 0) * 24 + (hubRoute.transitHours || 0) + (hubRoute.transitDays || 0) * 24,
+                  totalCarbon: (parseInt(route.carbon) || 0) + (parseInt(hubRoute.carbon) || 0)
+                });
+              }
+            });
+          }
+
+          // Route via another Supplier (e.g. Supplier 1 -> Supplier 2 -> France)
+          const nextSupplier = SUPPLIER_DATA.find(s => s.name === route.to);
+          if (nextSupplier) {
+            nextSupplier.routes.forEach(nsRoute => {
+              if (nsRoute.to === destination) {
+                paths.push({
+                  supplier: supplier.name,
+                  steps: [
+                    { from: supplier.name, to: nextSupplier.name, ...route },
+                    { from: nextSupplier.name, to: destination, ...nsRoute }
+                  ],
+                  totalCost: route.cost + nsRoute.cost,
+                  totalHours: (route.transitHours || 0) + (route.transitDays || 0) * 24 + (nsRoute.transitHours || 0) + (nsRoute.transitDays || 0) * 24,
+                  totalCarbon: (parseInt(route.carbon) || 0) + (parseInt(nsRoute.carbon) || 0)
+                });
+              }
+            });
+          }
+        });
+      });
+      
+      return paths;
+    };
+
+    const getMethodResult = (name: string, pathSelector: (paths: any[]) => any, feeMultiplier: number) => {
+      const itemPaths = selectedItems.map(item => ({
+        item,
+        path: pathSelector(findPaths(item.id, targetCountry))
+      }));
+
+      if (!itemPaths.every(p => p.path)) return null;
+
+      // Calculate Promise cut-off based on the first leg of each item
+      const firstLegCutoffs = itemPaths.map(p => {
+        const firstStep = p.path.steps[0];
+        if (firstStep.cutoffs && firstStep.cutoffs.length > 0) return firstStep.cutoffs[0];
+        return firstStep.cutoff || null;
+      }).filter(Boolean);
+
+      const methodCutoff = firstLegCutoffs.length > 0 
+        ? firstLegCutoffs.reduce((earliest, current) => {
+            if (!earliest) return current;
+            return current < earliest ? current : earliest;
+          })
+        : (name === 'Standard' ? '18:00' : '20:00');
+
+      // Deduplicate legs globally across all items and steps
+      const uniqueLegs = new Map<string, any>();
+      
+      itemPaths.forEach(({ item, path }) => {
+        path.steps.forEach((step: any, index: number) => {
+          const key = `${step.from}->${step.to}`;
+          const supplierInfo = SUPPLIER_DATA.find(s => s.name === step.from && s.itemId === item.id);
+          const purchasePrice = supplierInfo?.purchasePrice || item.price;
+          const enrichedItem = { ...item, price: purchasePrice };
+
+          if (!uniqueLegs.has(key)) {
+            uniqueLegs.set(key, { 
+              ...step, 
+              items: [], 
+              isHubLeg: index > 0,
+              legCost: step.cost,
+              legCarbon: parseInt(step.carbon) || 0
+            });
+          } else if (index > 0) {
+            // If this leg is used as a hub leg at least once, mark it as such
+            uniqueLegs.get(key)!.isHubLeg = true;
+          }
+          
+          // Add item to this leg's list if not already there
+          if (!uniqueLegs.get(key)!.items.find((i: any) => i.id === item.id)) {
+            uniqueLegs.get(key)!.items.push(enrichedItem);
+          }
+        });
+      });
+
+      // Standard mode merge logic: if a supplier is also a hub, merge its direct items into the hub leg
+      if (name === 'Standard') {
+        const hubNames = new Set(Array.from(uniqueLegs.values()).filter(l => l.isHubLeg).map(l => l.from));
+        uniqueLegs.forEach((leg, key) => {
+          if (!leg.isHubLeg && leg.to === targetCountry && hubNames.has(leg.from)) {
+            // This is a direct supplier leg from someone who is also a hub
+            const hubLeg = Array.from(uniqueLegs.values()).find(l => l.isHubLeg && l.from === leg.from);
+            if (hubLeg) {
+              leg.items.forEach((item: any) => {
+                if (!hubLeg.items.find((hi: any) => hi.id === item.id)) {
+                  hubLeg.items.push(item);
+                }
+              });
+              leg.mergedIntoHub = true;
+            }
+          }
+        });
+      }
+
+      const totalTransportCost = Array.from(uniqueLegs.values()).reduce((sum, l) => sum + l.legCost, 0);
+      const totalCarbon = Array.from(uniqueLegs.values()).reduce((sum, l) => sum + l.legCarbon, 0);
+      const maxHours = Math.max(...itemPaths.map(p => p.path.totalHours));
+      
+      // Shipments = number of legs arriving at destination
+      const shipments = Array.from(uniqueLegs.values()).filter(l => l.to === targetCountry).length;
+
+      return {
+        name,
+        status: 'Valid',
+        reason: 'Success',
+        dateStart: new Date(Date.now() + (maxHours - 12) * 3600000).toLocaleString(),
+        dateEnd: new Date(Date.now() + maxHours * 3600000).toLocaleString(),
+        cutoff: methodCutoff,
+        shipments,
+        cost: `${totalTransportCost.toFixed(2)}€`,
+        carbon: `${totalCarbon}g`,
+        fees: `${(totalTransportCost * feeMultiplier).toFixed(2)}€`,
+        carrier: Array.from(uniqueLegs.values()).find(l => l.to === targetCountry)?.carrier || 'UPS',
+        details: {
+          suppliers: Array.from(uniqueLegs.values())
+            .filter(l => !l.isHubLeg && !l.mergedIntoHub)
+            .map(l => ({
+              name: l.from,
+              items: l.items,
+              cost: l.legCost,
+              carbon: `${l.legCarbon}g`,
+              fees: `${(l.legCost * feeMultiplier).toFixed(2)}€`,
+              date: new Date(Date.now() + (l.transitHours || 0) * 3600000).toLocaleString(),
+              cutoff: l.cutoffs ? l.cutoffs[0] : (l.cutoff || '-'),
+              direct: l.to === targetCountry,
+              carrier: l.carrier,
+              consolidation: l.to !== targetCountry ? l.to : null
+            })),
+          hubs: Array.from(uniqueLegs.values())
+            .filter(l => l.isHubLeg)
+            .map(l => ({
+              name: l.from,
+              items: l.items,
+              cost: l.legCost,
+              carbon: `${l.legCarbon}g`,
+              fees: `${(l.legCost * feeMultiplier).toFixed(2)}€`,
+              carrier: l.carrier,
+              cutoff: l.cutoff
+            }))
+        }
+      };
+    };
+
+    const results: CalculatedMethod[] = [];
+    
+    const standard = getMethodResult(
+      'Standard', 
+      (paths) => paths.sort((a, b) => a.totalCost - b.totalCost)[0], 
+      0.8
+    );
+    if (standard) results.push(standard);
+
+    const express = getMethodResult(
+      'Express', 
+      (paths) => paths.sort((a, b) => a.totalHours - b.totalHours)[0], 
+      1.2
+    );
+    if (express) results.push(express);
+
+    return results;
+  }, [selectedItems, country]);
 
   const toggleRow = (method: string) => {
     setExpandedRows(prev => 
@@ -127,8 +400,34 @@ export default function App() {
     );
   };
 
-  const handleAddItem = (item: Item) => {
-    setSelectedItems(prev => [...prev, item]);
+  const toggleSupplier = (supplierId: string) => {
+    setExpandedSuppliers(prev => 
+      prev.includes(supplierId) ? prev.filter(s => s !== supplierId) : [...prev, supplierId]
+    );
+  };
+
+  const toggleConsolidation = (consolidationId: string) => {
+    setExpandedConsolidations(prev => 
+      prev.includes(consolidationId) ? prev.filter(c => c !== consolidationId) : [...prev, consolidationId]
+    );
+  };
+
+  const handleAddItems = (items: Item[]) => {
+    setSelectedItems(prev => {
+      const next = [...prev];
+      items.forEach(newItem => {
+        const existingIdx = next.findIndex(i => i.id === newItem.id);
+        if (existingIdx >= 0) {
+          next[existingIdx] = {
+            ...next[existingIdx],
+            quantity: (next[existingIdx].quantity || 0) + (newItem.quantity || 0)
+          };
+        } else {
+          next.push(newItem);
+        }
+      });
+      return next;
+    });
     setIsModalOpen(false);
   };
 
@@ -424,10 +723,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="text-gray-600">
-                      {[
-                        { name: 'Standard', status: 'Valid', reason: 'Success', dateStart: '11/03/2026 17:00', dateEnd: '12/03/2026 19:00', cutoff: '10/03/2026 16:00', shipments: 1, cost: '5.90€', carbon: '150g', fees: '4.99€', carrier: 'DHL' },
-                        { name: 'Express', status: 'Valid', reason: 'Success', dateStart: '10/03/2026 18:00', dateEnd: '11/03/2026 10:00', cutoff: '10/03/2026 14:00', shipments: 1, cost: '12.50€', carbon: '220g', fees: '9.99€', carrier: 'FedEx' },
-                      ].map((method) => (
+                      {calculateResults.map((method) => (
                         <React.Fragment key={method.name}>
                           <tr 
                             className={`hover:bg-gray-50 transition-colors border-b border-gray-50 cursor-pointer ${expandedRows.includes(method.name) ? 'bg-gray-50' : ''}`}
@@ -461,49 +757,165 @@ export default function App() {
                           {expandedRows.includes(method.name) && (
                             <tr className="bg-gray-50/50">
                               <td colSpan={12} className="px-8 py-4">
-                                <div className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm">
-                                  <table className="w-full text-left text-[10px]">
-                                    <thead>
-                                      <tr className="bg-gray-50 text-gray-400 border-b border-gray-100">
-                                        <th className="px-4 py-2 font-medium">Article ID</th>
-                                        <th className="px-4 py-2 font-medium">Quantity</th>
-                                        <th className="px-4 py-2 font-medium">Supplier</th>
-                                        <th className="px-4 py-2 font-medium">Purchase price</th>
-                                        <th className="px-4 py-2 font-medium">Shipping cost</th>
-                                        <th className="px-4 py-2 font-medium">Delivery date</th>
-                                        <th className="px-4 py-2 font-medium">Carrier</th>
-                                        <th className="px-4 py-2 font-medium">Consolidation place</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {selectedItems.length > 0 ? (
-                                        selectedItems.map((item, index) => (
-                                          <tr key={item.id} className="border-b border-gray-50 last:border-0">
-                                            <td className="px-4 py-2 font-medium text-gray-700">{item.id}</td>
-                                            <td className="px-4 py-2 font-medium text-gray-700">{item.quantity}</td>
-                                            <td className="px-4 py-2">Warehouse A</td>
-                                            <td className="px-4 py-2">{item.price.toFixed(2)} €</td>
-                                            <td className="px-4 py-2">{(method.cost)}</td>
-                                            <td className="px-4 py-2">{method.dateStart}</td>
-                                            <td className="px-4 py-2">
-                                              {index % 2 === 0 ? (
-                                                <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase">{method.carrier}</span>
-                                              ) : (
-                                                <span className="text-gray-300">-</span>
-                                              )}
-                                            </td>
-                                            <td className="px-4 py-2">
-                                              {index % 2 !== 0 ? "Hub Paris" : <span className="text-gray-300">-</span>}
-                                            </td>
-                                          </tr>
-                                        ))
-                                      ) : (
-                                        <tr>
-                                          <td colSpan={8} className="px-4 py-4 text-center text-gray-400">No items selected</td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
+                                <div className="space-y-4">
+                                  {/* Suppliers */}
+                                  {method.details.suppliers.map((sup, idx) => {
+                                    const supplierId = `${method.name}-${sup.name}-${idx}`;
+                                    const isExpanded = expandedSuppliers.includes(supplierId);
+                                    const totalPurchasePrice = sup.items.reduce((sum: number, item: any) => sum + (item.price * (item.quantity || 1)), 0);
+
+                                    return (
+                                      <div key={supplierId} className="bg-white border border-gray-100 rounded-lg overflow-hidden shadow-sm">
+                                        <table className="w-full text-left text-[10px]">
+                                          <thead>
+                                            <tr className="bg-gray-50 text-gray-400 border-b border-gray-100">
+                                              <th className="px-4 py-2 w-8"></th>
+                                              <th className="px-4 py-2 font-medium">Supplier</th>
+                                              <th className="px-4 py-2 font-medium">Total Purchase price</th>
+                                              <th className="px-4 py-2 font-medium">Transportation cost</th>
+                                              <th className="px-4 py-2 font-medium">Delivery date</th>
+                                              <th className="px-4 py-2 font-medium">Promise cut-off</th>
+                                              <th className="px-4 py-2 font-medium">Carbon footprint</th>
+                                              <th className="px-4 py-2 font-medium">Shipping fees</th>
+                                              <th className="px-4 py-2 font-medium">Direct to customer</th>
+                                              <th className="px-4 py-2 font-medium">Consolidation place</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            <tr 
+                                              className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer"
+                                              onClick={() => toggleSupplier(supplierId)}
+                                            >
+                                              <td className="px-4 py-2">
+                                                <ChevronRight 
+                                                  size={12} 
+                                                  className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`} 
+                                                />
+                                              </td>
+                                              <td className="px-4 py-2 font-semibold text-gray-700">{sup.name}</td>
+                                              <td className="px-4 py-2">{totalPurchasePrice.toFixed(2)} €</td>
+                                              <td className="px-4 py-2">{sup.cost.toFixed(2)} €</td>
+                                              <td className="px-4 py-2">{sup.date}</td>
+                                              <td className="px-4 py-2 font-mono">{sup.cutoff}</td>
+                                              <td className="px-4 py-2 text-gray-400">{sup.carbon}</td>
+                                              <td className="px-4 py-2">{sup.fees}</td>
+                                              <td className="px-4 py-2">
+                                                {sup.direct ? (
+                                                  <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase">{sup.carrier || 'UPS'}</span>
+                                                ) : 'No'}
+                                              </td>
+                                              <td className="px-4 py-2">{sup.consolidation || '-'}</td>
+                                            </tr>
+                                            {isExpanded && (
+                                              <tr className="bg-gray-50/30">
+                                                <td colSpan={10} className="px-8 py-2">
+                                                  <div className="text-[9px] font-semibold text-gray-400 mb-1 uppercase">Articles</div>
+                                                  <table className="w-full text-left text-[9px] border border-gray-100 rounded">
+                                                    <thead>
+                                                      <tr className="bg-gray-100/50 text-gray-500">
+                                                        <th className="px-3 py-1 font-medium">Article ID</th>
+                                                        <th className="px-3 py-1 font-medium">Quantity</th>
+                                                        <th className="px-3 py-1 font-medium">Purchase price</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                      {sup.items.map((item: any, iIdx: number) => (
+                                                        <tr key={iIdx} className="border-b border-gray-50 last:border-0 bg-white">
+                                                          <td className="px-3 py-1">{item.id}</td>
+                                                          <td className="px-3 py-1">{item.quantity}</td>
+                                                          <td className="px-3 py-1">{item.price.toFixed(2)} €</td>
+                                                        </tr>
+                                                      ))}
+                                                    </tbody>
+                                                  </table>
+                                                </td>
+                                              </tr>
+                                            )}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    );
+                                  })}
+
+                                  {/* Hubs */}
+                                  {method.details.hubs.map((hub, idx) => {
+                                    const hubId = `${method.name}-hub-${hub.name}-${idx}`;
+                                    const isExpanded = expandedConsolidations.includes(hubId);
+
+                                    return (
+                                      <div key={hubId} className="bg-white border border-blue-100 rounded-lg overflow-hidden shadow-sm">
+                                        <table className="w-full text-left text-[10px]">
+                                          <thead>
+                                            <tr className="bg-blue-50 text-blue-600 border-b border-blue-100">
+                                              <th className="px-4 py-2 w-8"></th>
+                                              <th className="px-4 py-2 font-medium">Consolidation place</th>
+                                              <th className="px-4 py-2 font-medium">Delivery date (start)</th>
+                                              <th className="px-4 py-2 font-medium">Delivery date</th>
+                                              <th className="px-4 py-2 font-medium">Promise cut-off</th>
+                                              <th className="px-4 py-2 font-medium">Transportation cost</th>
+                                              <th className="px-4 py-2 font-medium">Carbon footprint</th>
+                                              <th className="px-4 py-2 font-medium">Shipping fees</th>
+                                              <th className="px-4 py-2 font-medium">Carrier</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            <tr 
+                                              className="border-b border-blue-50 hover:bg-blue-50/50 cursor-pointer"
+                                              onClick={() => toggleConsolidation(hubId)}
+                                            >
+                                              <td className="px-4 py-2">
+                                                <ChevronRight 
+                                                  size={12} 
+                                                  className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`} 
+                                                />
+                                              </td>
+                                              <td className="px-4 py-2 font-semibold">{hub.name}</td>
+                                              <td className="px-4 py-2">{method.dateStart}</td>
+                                              <td className="px-4 py-2">{method.dateEnd}</td>
+                                              <td className="px-4 py-2">{hub.cutoff || method.cutoff}</td>
+                                              <td className="px-4 py-2">{hub.cost?.toFixed(2)} €</td>
+                                              <td className="px-4 py-2">{hub.carbon}</td>
+                                              <td className="px-4 py-2">{hub.fees}</td>
+                                              <td className="px-4 py-2">
+                                                <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase">{hub.carrier || method.carrier}</span>
+                                              </td>
+                                            </tr>
+                                            {isExpanded && (
+                                              <tr className="bg-gray-50/30">
+                                                <td colSpan={9} className="px-8 py-2">
+                                                  <div className="text-[9px] font-semibold text-gray-400 mb-1 uppercase">Articles</div>
+                                                  <table className="w-full text-left text-[9px] border border-gray-100 rounded">
+                                                    <thead>
+                                                      <tr className="bg-gray-100/50 text-gray-500">
+                                                        <th className="px-3 py-1 font-medium">Article ID</th>
+                                                        <th className="px-3 py-1 font-medium">Quantity</th>
+                                                        <th className="px-3 py-1 font-medium">Purchase price</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                      {hub.items.map((item: any, iIdx: number) => (
+                                                        <tr key={iIdx} className="border-b border-gray-50 last:border-0 bg-white">
+                                                          <td className="px-3 py-1">{item.id}</td>
+                                                          <td className="px-3 py-1">{item.quantity}</td>
+                                                          <td className="px-3 py-1">{item.price.toFixed(2)} €</td>
+                                                        </tr>
+                                                      ))}
+                                                    </tbody>
+                                                  </table>
+                                                </td>
+                                              </tr>
+                                            )}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    );
+                                  })}
+
+                                  {calculateResults.length === 0 && (
+                                    <div className="bg-white border border-gray-100 rounded-lg p-8 text-center text-gray-400 text-[10px]">
+                                      No delivery routes found for this destination
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -534,7 +946,7 @@ export default function App() {
           <AddItemModal 
             isOpen={isModalOpen} 
             onClose={() => setIsModalOpen(false)} 
-            onAdd={handleAddItem} 
+            onAddMultiple={handleAddItems} 
           />
         )}
       </AnimatePresence>
