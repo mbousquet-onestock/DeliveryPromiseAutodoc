@@ -281,11 +281,12 @@ export default function App() {
       const uniqueLegs = new Map<string, any>();
       
       itemPaths.forEach(({ item, path }) => {
+        const originSupplier = path.steps[0].from;
         path.steps.forEach((step: any, index: number) => {
           const key = `${step.from}->${step.to}`;
           const supplierInfo = SUPPLIER_DATA.find(s => s.name === step.from && s.itemId === item.id);
           const purchasePrice = supplierInfo?.purchasePrice || item.price;
-          const enrichedItem = { ...item, price: purchasePrice };
+          const enrichedItem = { ...item, price: purchasePrice, originSupplier };
 
           if (!uniqueLegs.has(key)) {
             uniqueLegs.set(key, { 
@@ -888,6 +889,7 @@ export default function App() {
                                                     <thead>
                                                       <tr className="bg-gray-100/50 text-gray-500">
                                                         <th className="px-3 py-1 font-medium">Article ID</th>
+                                                        <th className="px-3 py-1 font-medium">Origin Supplier</th>
                                                         <th className="px-3 py-1 font-medium">Quantity</th>
                                                         <th className="px-3 py-1 font-medium">Purchase price</th>
                                                       </tr>
@@ -896,6 +898,7 @@ export default function App() {
                                                       {hub.items.map((item: any, iIdx: number) => (
                                                         <tr key={iIdx} className="border-b border-gray-50 last:border-0 bg-white">
                                                           <td className="px-3 py-1">{item.id}</td>
+                                                          <td className="px-3 py-1 font-medium text-gray-700">{item.originSupplier}</td>
                                                           <td className="px-3 py-1">{item.quantity}</td>
                                                           <td className="px-3 py-1">{item.price.toFixed(2)} €</td>
                                                         </tr>
